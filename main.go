@@ -14,12 +14,17 @@ import (
 	"github.com/minodisk/rescraper/tw"
 )
 
+const (
+	fbWait = 1 * time.Second
+	twWait = 1 * time.Second
+)
+
 var (
 	fbClient   *fb.Client
 	twClient   *tw.Client
 	fbMutex    = new(sync.Mutex)
 	twMutex    = new(sync.Mutex)
-	cacheMutex = new(sync.RWMutex)
+	cacheMutex = new(sync.Mutex)
 	cache      = []string{}
 )
 
@@ -53,14 +58,9 @@ func _main() error {
 	flag.Parse()
 	u := flag.Arg(0)
 
-	normalizedURL, err := normalizeURL(u)
-	if err != nil {
-		return err
-	}
-
 	wg := &sync.WaitGroup{}
 
-	if err := process(wg, []string{normalizedURL}); err != nil {
+	if err := process(wg, []string{u}); err != nil {
 		return err
 	}
 
@@ -71,44 +71,29 @@ func _main() error {
 	return nil
 }
 
-func normalizeURL(u string) (string, error) {
-	obj, err := url.Parse(u)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%s://%s%s", obj.Scheme, obj.Host, obj.RequestURI()), nil
-}
-
-func filterURLs(urls []string) ([]string, error) {
+func process(wg *sync.WaitGroup, urls []string) error {
 	unlistedURLs := []string{}
+	cacheMutex.Lock()
 outer:
 	for _, u := range urls {
 		normalizedURL, err := normalizeURL(u)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		cacheMutex.RLock()
+
 		for _, listedURL := range cache {
 			if normalizedURL == listedURL {
 				// already listed
-				cacheMutex.RUnlock()
 				continue outer
 			}
 		}
-		cacheMutex.RUnlock()
-		unlistedURLs = append(unlistedURLs, normalizedURL)
-	}
-	return unlistedURLs, nil
-}
 
-func process(wg *sync.WaitGroup, urls []string) error {
-	cacheMutex.Lock()
-	for _, u := range urls {
-		cache = append(cache, u)
+		unlistedURLs = append(unlistedURLs, normalizedURL)
+		cache = append(cache, normalizedURL)
 	}
 	cacheMutex.Unlock()
 
-	for _, u := range urls {
+	for _, u := range unlistedURLs {
 		fmt.Println("->", u)
 
 		wg.Add(1)
@@ -126,7 +111,7 @@ func process(wg *sync.WaitGroup, urls []string) error {
 
 func rescrapeFB(wg *sync.WaitGroup, u string) {
 	defer func() {
-		time.Sleep(18 * time.Second)
+		time.Sleep(fbWait)
 		fbMutex.Unlock()
 		wg.Done()
 	}()
@@ -138,7 +123,7 @@ func rescrapeFB(wg *sync.WaitGroup, u string) {
 
 func rescrapeTW(wg *sync.WaitGroup, u string) {
 	defer func() {
-		time.Sleep(2 * time.Second)
+		time.Sleep(twWait)
 		twMutex.Unlock()
 		wg.Done()
 	}()
@@ -159,15 +144,15 @@ func scrape(wg *sync.WaitGroup, u string) {
 		return
 	}
 
-	filteredURLs, err := filterURLs(us)
+	if err := process(wg, us); err != nil {
+		fmt.Println(err)
+	}
+}
+
+func normalizeURL(u string) (string, error) {
+	obj, err := url.Parse(u)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return "", err
 	}
-	if len(filteredURLs) == 0 {
-		return
-	}
-	if err := process(wg, filteredURLs); err != nil {
-		fmt.Println(err)
-	}
+	return fmt.Sprintf("%s://%s%s", obj.Scheme, obj.Host, obj.RequestURI()), nil
 }
