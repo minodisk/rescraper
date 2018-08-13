@@ -1,13 +1,11 @@
 package fb
 
 import (
-	"bytes"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 
-	"github.com/minodisk/rescraper/errs"
+	"github.com/minodisk/rescraper/http"
 	"github.com/pkg/errors"
 )
 
@@ -30,22 +28,11 @@ func (c *Client) Scrape(u string) error {
 	values.Set("id", u)
 	values.Set("scrape", "true")
 	values.Set("access_token", c.accessTokens[c.index])
-
 	c.index = (c.index + 1) % len(c.accessTokens)
 
-	req, err := http.NewRequest(http.MethodPost, "https://graph.facebook.com", bytes.NewBufferString(values.Encode()))
+	_, err := http.PostFormWithCookies("https://graph.facebook.com", values, nil)
 	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-
-	cli := &http.Client{}
-	res, err := cli.Do(req)
-	if err != nil {
-		return err
-	}
-	if res.StatusCode >= 300 {
-		return errors.Wrapf(errs.NewHTTPError(res.StatusCode, res.Body), "fb: fail to scrape '%s'", u)
+		return errors.Wrap(err, "can not post form")
 	}
 
 	fmt.Printf("fb: sccess to scrape: %s\n", u)

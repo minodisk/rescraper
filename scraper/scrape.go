@@ -2,18 +2,17 @@ package scraper
 
 import (
 	"io"
-	"net/http"
 	"net/url"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/minodisk/rescraper/errs"
+	"github.com/minodisk/rescraper/http"
 	"github.com/pkg/errors"
 )
 
 func Scrape(u string) ([]string, error) {
-	body, err := fetch(u)
+	body, err := http.Get(u)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "can not fetch '%s'", u)
 	}
 
 	hrefs, err := parse(body)
@@ -22,17 +21,6 @@ func Scrape(u string) ([]string, error) {
 	}
 
 	return filter(u, hrefs)
-}
-
-func fetch(u string) (io.ReadCloser, error) {
-	res, err := http.Get(u)
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode >= 300 {
-		return nil, errors.Wrapf(errs.NewHTTPError(res.StatusCode, res.Body), "fail to fetch: %s", u)
-	}
-	return res.Body, nil
 }
 
 func parse(body io.ReadCloser) ([]string, error) {

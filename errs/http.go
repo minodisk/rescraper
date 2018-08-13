@@ -2,8 +2,6 @@ package errs
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
 )
 
 type HTTPError struct {
@@ -11,13 +9,8 @@ type HTTPError struct {
 	message    string
 }
 
-func NewHTTPError(code int, body io.ReadCloser) *HTTPError {
-	defer body.Close()
-	buf, err := ioutil.ReadAll(body)
-	if err != nil {
-		return &HTTPError{code, ""}
-	}
-	return &HTTPError{code, string(buf)}
+func NewHTTPError(code int, message string) *HTTPError {
+	return &HTTPError{code, message}
 }
 
 func (e *HTTPError) Error() string {
