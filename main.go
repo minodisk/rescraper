@@ -3,13 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/url"
+	_url "net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/minodisk/rescraper/fb"
+	"github.com/minodisk/rescraper/http"
 	"github.com/minodisk/rescraper/scraper"
 	"github.com/minodisk/rescraper/tw"
 )
@@ -56,11 +57,11 @@ func _main() error {
 	}
 
 	flag.Parse()
-	u := flag.Arg(0)
+	url := flag.Arg(0)
 
 	wg := &sync.WaitGroup{}
 
-	if err := process(wg, []string{u}); err != nil {
+	if err := process(wg, []string{url}); err != nil {
 		return err
 	}
 
@@ -75,8 +76,8 @@ func process(wg *sync.WaitGroup, urls []string) error {
 	unlistedURLs := []string{}
 	cacheMutex.Lock()
 outer:
-	for _, u := range urls {
-		normalizedURL, err := normalizeURL(u)
+	for _, url := range urls {
+		normalizedURL, err := normalizeURL(url)
 		if err != nil {
 			return err
 		}
@@ -93,52 +94,58 @@ outer:
 	}
 	cacheMutex.Unlock()
 
-	for _, u := range unlistedURLs {
-		fmt.Println("->", u)
+	for _, url := range unlistedURLs {
+		fmt.Println("->", url)
+
+		_, err := http.Head(url)
+		if err != nil {
+			fmt.Printf("fail to HEAD: %s", url)
+			continue
+		}
 
 		wg.Add(1)
-		go rescrapeFB(wg, u)
+		go rescrapeFB(wg, url)
 
 		wg.Add(1)
-		go rescrapeTW(wg, u)
+		go rescrapeTW(wg, url)
 
 		wg.Add(1)
-		go scrape(wg, u)
+		go scrape(wg, url)
 	}
 
 	return nil
 }
 
-func rescrapeFB(wg *sync.WaitGroup, u string) {
+func rescrapeFB(wg *sync.WaitGroup, url string) {
 	defer func() {
 		time.Sleep(fbWait)
 		fbMutex.Unlock()
 		wg.Done()
 	}()
 	fbMutex.Lock()
-	if err := fbClient.Scrape(u); err != nil {
+	if err := fbClient.Scrape(url); err != nil {
 		fmt.Println(err)
 	}
 }
 
-func rescrapeTW(wg *sync.WaitGroup, u string) {
+func rescrapeTW(wg *sync.WaitGroup, url string) {
 	defer func() {
 		time.Sleep(twWait)
 		twMutex.Unlock()
 		wg.Done()
 	}()
 	twMutex.Lock()
-	if err := twClient.Scrape(u); err != nil {
+	if err := twClient.Scrape(url); err != nil {
 		fmt.Println(err)
 	}
 }
 
-func scrape(wg *sync.WaitGroup, u string) {
+func scrape(wg *sync.WaitGroup, url string) {
 	defer func() {
 		wg.Done()
 	}()
 
-	us, err := scraper.Scrape(u)
+	us, err := scraper.Scrape(url)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -149,8 +156,8 @@ func scrape(wg *sync.WaitGroup, u string) {
 	}
 }
 
-func normalizeURL(u string) (string, error) {
-	obj, err := url.Parse(u)
+func normalizeURL(url string) (string, error) {
+	obj, err := _url.Parse(url)
 	if err != nil {
 		return "", err
 	}

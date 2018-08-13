@@ -2,17 +2,17 @@ package scraper
 
 import (
 	"io"
-	"net/url"
+	_url "net/url"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/minodisk/rescraper/http"
 	"github.com/pkg/errors"
 )
 
-func Scrape(u string) ([]string, error) {
-	body, err := http.Get(u)
+func Scrape(url string) ([]string, error) {
+	body, err := http.Get(url)
 	if err != nil {
-		return nil, errors.Wrapf(err, "can not fetch '%s'", u)
+		return nil, errors.Wrapf(err, "can not fetch '%s'", url)
 	}
 
 	hrefs, err := parse(body)
@@ -20,7 +20,7 @@ func Scrape(u string) ([]string, error) {
 		return nil, err
 	}
 
-	return filter(u, hrefs)
+	return filter(url, hrefs)
 }
 
 func parse(body io.ReadCloser) ([]string, error) {
@@ -47,14 +47,14 @@ func parse(body io.ReadCloser) ([]string, error) {
 }
 
 func filter(u string, hrefs []string) ([]string, error) {
-	base, err := url.Parse(u)
+	base, err := _url.Parse(u)
 	if err != nil {
 		return nil, err
 	}
 
 	validHrefs := []string{}
 	for _, u := range hrefs {
-		ref, err := url.Parse(u)
+		ref, err := _url.Parse(u)
 		if err != nil {
 			return nil, err
 		}

@@ -35,8 +35,17 @@ func Get(url string) (io.ReadCloser, error) {
 	return Do(req)
 }
 
+func Head(url string) (io.ReadCloser, error) {
+	req, err := _http.NewRequest(_http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "can not create request")
+	}
+	return Do(req)
+}
+
 func Do(req *_http.Request) (io.ReadCloser, error) {
 	cli := &_http.Client{}
+	cli.CheckRedirect = ignoreRedirect
 	res, err := cli.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "can not send HTTP request")
@@ -51,4 +60,8 @@ func Do(req *_http.Request) (io.ReadCloser, error) {
 	}
 
 	return res.Body, nil
+}
+
+func ignoreRedirect(req *_http.Request, via []*_http.Request) error {
+	return _http.ErrUseLastResponse
 }
